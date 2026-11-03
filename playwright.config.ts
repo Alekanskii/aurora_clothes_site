@@ -25,7 +25,9 @@ export default defineConfig({
   },
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
-  reporter: "html",
+  // In CI, also report failures as GitHub annotations so they show up on
+  // the run's summary page without downloading the HTML report artifact.
+  reporter: process.env.CI ? [["github"], ["html"]] : "html",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
     trace: "on-first-retry",
