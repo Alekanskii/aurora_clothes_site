@@ -2,6 +2,11 @@ import { test, expect } from "@playwright/test";
 import { loginAs, resetTestUserCart } from "./helpers";
 
 test.describe("Cart → Checkout", () => {
+  // Every test here shares TEST_USER's single cart, so they can't run
+  // concurrently under CI's fullyParallel — one test's resetTestUserCart()
+  // would wipe another's items mid-assertion. Keep them sequential.
+  test.describe.configure({ mode: "default" });
+
   test.beforeEach(async ({ page }) => {
     await resetTestUserCart();
     await loginAs(page);
