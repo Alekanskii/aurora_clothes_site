@@ -53,6 +53,10 @@ jobs:
       # the same value as any real environment's AUTH_SECRET.
       AUTH_SECRET: ci-only-throwaway-secret-do-not-reuse-anywhere-else
       NEXTAUTH_URL: http://localhost:3000
+      # Auth.js v5 rejects every request with UntrustedHost under
+      # NODE_ENV=production unless the host is explicitly trusted (Vercel
+      # sets this automatically; `next start` here doesn't).
+      AUTH_TRUST_HOST: "true"
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       NODE_ENV: production
       PLAYWRIGHT_BASE_URL: http://localhost:3000
