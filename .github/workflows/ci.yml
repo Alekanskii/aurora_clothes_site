@@ -72,7 +72,10 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      # NODE_ENV=production (set above for the build) makes npm skip
+      # devDependencies by default — but the build needs typescript (to
+      # resolve the @/ path aliases in tsconfig.json), autoprefixer, etc.
+      - run: npm ci --include=dev
 
       - name: Apply migrations
         run: npx prisma migrate deploy
