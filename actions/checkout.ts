@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth/config";
-import { stripe, isStripeConfigured } from "@/lib/stripe";
+import { stripe } from "@/lib/stripe";
 import { getCurrentCart } from "@/lib/data/cart";
 import { shippingAddressSchema, type ShippingAddressInput } from "@/lib/validation/checkout";
 import { DEMO_COUPON_CODE, DEMO_COUPON_DISCOUNT_PERCENT } from "@/lib/cart/constants";
@@ -12,7 +12,7 @@ type ActionResult = { success: true; url: string } | { success: false; error: st
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export async function createCheckoutSessionAction(input: ShippingAddressInput): Promise<ActionResult> {
-  if (!isStripeConfigured) {
+  if (!stripe) {
     return {
       success: false,
       error:

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { stripe, isStripeConfigured } from "@/lib/stripe";
+import { stripe } from "@/lib/stripe";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { orderStatusSchema } from "@/lib/validation/admin";
 
@@ -24,7 +24,7 @@ export async function updateOrderStatusAction(orderId: string, status: string): 
   // still updates but the refund itself is skipped, with that limitation
   // returned as an error rather than silently pretending money moved.
   if (parsed.data === "REFUNDED" && order.status !== "REFUNDED") {
-    if (!isStripeConfigured) {
+    if (!stripe) {
       return { success: false, error: "Stripe isn't configured — can't issue a real refund." };
     }
     if (!order.stripePaymentIntentId) {
