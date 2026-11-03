@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * These CSS variables exist for two reasons:
+ * 1. shadcn/ui components (button, dialog, dropdown, etc.) read the
+ *    --background/--foreground/--primary/... names below. Renaming them
+ *    means re-theming every shadcn component you add.
+ * 2. They're in HSL triplets (no hsl() wrapper) because that's the format
+ *    Tailwind's `hsl(var(--x))` config expects.
+ *
+ * The actual AURORA brand colors (ink/paper/gold/stone) live in
+ * tailwind.config.ts as named utilities (bg-ink, text-gold, etc.) — use
+ * those directly in product UI. Use the --background/--primary variables
+ * only when composing a shadcn primitive that expects them.
+ */
+@layer base {
+  :root {
+    --background: 40 20% 96%;      /* paper #F7F6F3 */
+    --foreground: 0 0% 6%;         /* ink #0F0F0F */
+
+    --card: 40 20% 96%;
+    --card-foreground: 0 0% 6%;
+
+    --popover: 40 20% 96%;
+    --popover-foreground: 0 0% 6%;
+
+    --primary: 0 0% 6%;            /* ink */
+    --primary-foreground: 40 20% 96%;
+
+    --secondary: 43 16% 91%;       /* paper-deep #EDEAE2 */
+    --secondary-foreground: 0 0% 6%;
+
+    --muted: 43 16% 91%;
+    --muted-foreground: 0 0% 55%;  /* stone #8C8C8C */
+
+    --accent: 39 48% 62%;          /* gold #D6B16A */
+    --accent-foreground: 0 0% 6%;
+
+    --destructive: 4 63% 51%;      /* error #D32F2F */
+    --destructive-foreground: 40 20% 96%;
+
+    --border: 40 10% 85%;           /* equivalent to the prototype's rgba(15,15,15,.13) hairline on paper */
+    --input: 40 10% 85%;
+    --ring: 39 40% 48%;            /* gold-deep #B8905A */
+
+    --radius: 0px; /* AURORA is square-cornered by design — see cat-card/card-media in the prototype */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-paper text-ink font-body antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply font-heading;
+  }
+  ::selection {
+    background-color: theme("colors.gold");
+    color: theme("colors.ink");
+  }
+  :focus-visible {
+    outline: 2px solid theme("colors.gold-deep");
+    outline-offset: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

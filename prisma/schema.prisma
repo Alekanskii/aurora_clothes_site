@@ -1,0 +1,293 @@
+// AURORA — production schema
+// Conventions:
+//  - All money fields are integer cents. Never use Float for currency.
+//  - OrderItem snapshots price/name at purchase time — never join back to
+//    live Product/Variant for historical totals.
+//  - Every table that can be mutated by an admin is written to AuditLog.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ──────────────────────────────────────────────────────────
+// Auth & users
+// ──────────────────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String? // null for OAuth-only accounts if a provider is added later
+  name          String?
+  role          Role      @default(CUSTOMER)
+  emailVerified DateTime?
+
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  addresses      Address[]
+  orders         Order[]
+  wishlistItems  WishlistItem[]
+  reviews        Review[]
+  refreshTokens  RefreshToken[]
+  verifications  VerificationToken[]
+  auditLogs      AuditLog[]
+  cart           Cart?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+// Hashed, single-use, expiring — never store a usable token in plaintext.
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Used for both email verification and password reset — `purpose` distinguishes them.
+model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  purpose   VerificationPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, purpose])
+}
+
+enum VerificationPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String // e.g. "product.update", "order.refund", "auth.login_failed"
+  targetId  String?
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+}
+
+model Address {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName  String
+  line1     String
+  line2     String?
+  city      String
+  postcode  String
+  country   String
+  phone     String?
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ──────────────────────────────────────────────────────────
+// Catalog
+// ──────────────────────────────────────────────────────────
+
+model Category {
+  id       String    @id @default(cuid())
+  slug     String    @unique
+  name     String
+  products Product[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  variants Variant[]
+  images   ProductImage[]
+  reviews  Review[]
+  wishlistedBy WishlistItem[]
+
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([isPublished])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String // Cloudinary secure_url
+  alt       String
+  position  Int     @default(0)
+
+  @@index([productId])
+}
+
+// A variant is the sellable unit: one specific color + size combination.
+model Variant {
+  id         String @id @default(cuid())
+  productId  String
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  color      String
+  size       String
+  sku        String @unique
+  priceCents Int // integer cents — never Float
+  stock      Int    @default(0)
+
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+
+  @@unique([productId, color, size])
+  @@index([productId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int // 1-5, enforce in Zod schema at the API boundary
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model WishlistItem {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+// ──────────────────────────────────────────────────────────
+// Orders
+// ──────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING // cart -> checkout session created, not yet paid
+  PAID
+  FULFILLED
+  CANCELLED
+  REFUNDED
+}
+
+model Order {
+  id     String      @id @default(cuid())
+  userId String
+  user   User        @relation(fields: [userId], references: [id])
+  status OrderStatus @default(PENDING)
+
+  items OrderItem[]
+
+  subtotalCents Int
+  shippingCents Int
+  taxCents      Int
+  discountCents Int @default(0)
+  totalCents    Int
+
+  shippingAddress Json // snapshot at time of order — do not reference Address by id
+  couponCode      String?
+
+  stripeCheckoutSessionId String? @unique
+  stripePaymentIntentId   String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+// Snapshots name/price at purchase time so later catalog changes never
+// rewrite order history.
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId  String
+  variant    Variant @relation(fields: [variantId], references: [id])
+  nameSnapshot  String
+  colorSnapshot String
+  sizeSnapshot  String
+  priceCentsSnapshot Int
+  quantity   Int
+
+  @@index([orderId])
+}
+
+// ──────────────────────────────────────────────────────────
+// Cart
+// ──────────────────────────────────────────────────────────
+
+// One cart per signed-in user (userId unique) OR one cart per guest,
+// looked up by an opaque guestToken stored in an HttpOnly cookie — never
+// the cart's own id, so a leaked cookie can't be traded for a guessable
+// primary key. On login, the guest cart (if any) is merged into the
+// user's cart and deleted — see actions/cart.ts mergeGuestCartIntoUserAction.
+model Cart {
+  id         String     @id @default(cuid())
+  userId     String?    @unique
+  user       User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestToken String?    @unique
+  couponCode String?
+  items      CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int
+
+  createdAt DateTime @default(now())
+
+  // One row per (cart, variant) — adding the same color/size again
+  // increments quantity instead of creating a duplicate line item.
+  @@unique([cartId, variantId])
+  @@index([cartId])
+}
