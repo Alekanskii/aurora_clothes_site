@@ -15,7 +15,7 @@ import {
  */
 function toProductCardData(product: ProductWithRelations): ProductCardData {
   const cheapestVariant = product.variants.reduce(
-    (min, v) => (v.priceCents < min.priceCents ? v : min),
+    (min, v) => (!min || v.priceCents < min.priceCents ? v : min),
     product.variants[0]
   );
   const primaryImage = product.images[0];

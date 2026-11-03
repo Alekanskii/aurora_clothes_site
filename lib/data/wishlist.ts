@@ -25,7 +25,7 @@ export async function getWishlistProducts(userId: string): Promise<ProductCardDa
 
   return items.map(({ product }) => {
     const cheapestVariant = product.variants.reduce(
-      (min, v) => (v.priceCents < min.priceCents ? v : min),
+      (min, v) => (!min || v.priceCents < min.priceCents ? v : min),
       product.variants[0]
     );
     const primaryImage = product.images[0];

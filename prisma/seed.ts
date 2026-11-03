@@ -184,6 +184,8 @@ async function main() {
 
   console.log("Seeding products...");
   for (const p of products) {
+    const categoryId = categoryIdBySlug[p.category];
+    if (!categoryId) throw new Error(`Unknown category "${p.category}" for product "${p.slug}"`);
     const product = await prisma.product.upsert({
       where: { slug: p.slug },
       update: {},
@@ -191,7 +193,7 @@ async function main() {
         slug: p.slug,
         name: p.name,
         description: p.description,
-        categoryId: categoryIdBySlug[p.category],
+        categoryId,
         images: {
           create: [
             {
@@ -311,6 +313,7 @@ async function main() {
     const product = await prisma.product.findUnique({ where: { slug: seed.productSlug } });
     if (!product) continue;
     const userId = userIdByEmail[seed.reviewerEmail];
+    if (!userId) continue;
     await prisma.review.upsert({
       where: {
         // No natural unique key on Review beyond id, so guard against
